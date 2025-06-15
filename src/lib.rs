@@ -225,6 +225,52 @@
 //! # struct NoDebugType;
 //! debug!(NoDebugType);
 //! ```
+//! 
+//! # Running a mutable trait method
+//! 
+//! It is also possible to conditionally run a mutable trait method for an
+//! object, depending on whether or not that object implements a certain trait
+//! 
+//! ```
+//! # use spez::spez;
+//! #
+//! struct MyStruct1(u32);
+//! struct MyStruct2(u32);
+//! 
+//! trait Increment {
+//! 	fn inc(&mut self);
+//! }
+//! 
+//! impl Increment for &mut MyStruct1 {
+//! 	fn inc(&mut self) {
+//! 		self.0 += 1;
+//! 	}
+//! }
+//! 
+//! let mut my_object1 = MyStruct1(0);
+//! let mut my_object2 = MyStruct2(0);
+//! 
+//! assert_eq!(my_object1.0, 0);
+//! assert_eq!(my_object2.0, 0);
+//! 
+//! spez! {
+//!		for x = &mut my_object1;
+//!		match<T> T where T: Increment {
+//!			x.inc();
+//!		}
+//! 	match<T> T {}
+//!	};
+//! spez! {
+//!		for x = &mut my_object2;
+//!		match<T> T where T: Increment {
+//!			x.inc();
+//!		}
+//! 	match<T> T {}
+//!	};
+//! 
+//! assert_eq!(my_object1.0, 1);
+//! assert_eq!(my_object2.0, 0);
+//! ```
 
 extern crate proc_macro;
 
@@ -244,10 +290,14 @@ pub fn spez(tokens: TokenStream) -> TokenStream {
 	spez_impl(syn::parse_macro_input!(tokens)).into()
 }
 
-fn refs(n: usize) -> TokenStream2 {
+fn refs(n: usize, is_mutable: bool) -> TokenStream2 {
 	let mut refs = TokenStream2::new();
 	for _ in 0..n {
-		refs.extend(quote![&]);
+		if !is_mutable {
+			refs.extend(quote![&]);
+		} else {
+			refs.extend(quote![&mut]);
+		}
 	}
 	refs
 }
@@ -257,10 +307,16 @@ fn spez_impl(args: Args) -> TokenStream2 {
 
 	let param_def = match args.param {
 		Some(param) => quote! {
-			let #param = self.0.take().unwrap();
+			#[allow(unused_mut)]
+			let mut #param = self.0.take().unwrap();
 			let _ = #param; // Suppress unused variable warning.
 		},
 		None => quote! {},
+	};
+
+	let is_mutable = match args.expr {
+		syn::Expr::Reference(ref refer) => refer.mutability.is_some(),
+		_ => false,
 	};
 
 	let n_arms = args.arms.len();
@@ -271,7 +327,7 @@ fn spez_impl(args: Args) -> TokenStream2 {
 		let ty = arm.ty;
 		let generics = &arm.generics;
 		let where_clause = &arm.generics.where_clause;
-		let refs = refs(n_arms - i - 1);
+		let refs = refs(n_arms - i - 1, is_mutable);
 		let return_type = match arm.return_type {
 			Some(return_type) => quote! { #return_type },
 			None => quote! { () },
@@ -293,7 +349,7 @@ fn spez_impl(args: Args) -> TokenStream2 {
 	}
 
 	let expr = args.expr;
-	let refs = refs(n_arms);
+	let refs = refs(n_arms, is_mutable);
 
 	quote! {
 		{
