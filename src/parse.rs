@@ -3,6 +3,7 @@ use std::iter::FromIterator;
 use syn::punctuated::Punctuated;
 use syn::Token;
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Args {
 	pub for_token: Token![for],
 	pub param: Option<syn::Ident>,
@@ -12,6 +13,7 @@ pub struct Args {
 	pub arms: Vec<Arm>,
 }
 
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Arm {
 	pub match_token: Token![match],
 	pub generics: syn::Generics,
