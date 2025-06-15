@@ -12,7 +12,7 @@ keywords = ["autoref", "autoderef", "specialization", "specialisation"]
 categories = ["rust-patterns", "development-tools", "development-tools::procedural-macro-helpers", "no-std"]
 
 [lib]
-proc_macro = true
+proc-macro = true
 
 [dependencies]
 proc-macro2 = "1.0.56"
